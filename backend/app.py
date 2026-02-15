@@ -9,11 +9,10 @@ import requests
 app = Flask(__name__)
 CORS(app)
 
-# --- الدوال المساعدة (تحليل الروابط وفحص VirusTotal) ---
 
 BLOCKED_SCHEMES = {"javascript", "data", "file"}
-VT_API_KEY = os.getenv("VT_API_KEY") # تأكدي من ضبط مفتاح API في جهازك
-
+# التعديل الصحيح: المفتاح يوضع مباشرة بين علامات تنصيص
+VT_API_KEY = "10b27894fc878edab9780d9f288ebb33ddd0e28d21c5ddabe473b1f12925259f"
 def analyze_url_basic(input_text: str):
     text = input_text.strip()
     if not text.startswith(("http://", "https://")):
@@ -71,7 +70,6 @@ def scan_qr_api():
     
     file = request.files['file']
     try:
-        # معالجة الصورة في الذاكرة لضمان الخصوصية
         filestr = file.read()
         npimg = np.frombuffer(filestr, np.uint8)
         img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
@@ -80,10 +78,15 @@ def scan_qr_api():
         data, _, _ = detector.detectAndDecode(img)
         
         if data:
+            # طباعة الرابط الذي تم استخراجه من الصورة للتأكد
+            print(f"\n[INFO] الرابط المستخرج: {data}")
+            
             analysis = analyze_url_basic(data)
             vt_result = None
             if analysis["is_valid_format"]:
                 vt_result = check_virustotal(analysis["normalized_url"])
+                # طباعة نتيجة الفحص القادمة من VirusTotal
+                print(f"[INFO] نتيجة VirusTotal: {vt_result}\n")
             
             return jsonify({
                 "success": True, 
@@ -91,9 +94,12 @@ def scan_qr_api():
                 "analysis": analysis,
                 "vt_result": vt_result
             })
+        
+        print("[WARN] لم يتم العثور على QR في الصورة")
         return jsonify({"success": False, "error": "لم يتم العثور على رمز QR"}), 404
             
     except Exception as e:
+        print(f"[ERROR] حدث خطأ: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 # تأكدي أن هذا السطر دائماً في نهاية الملف
