@@ -96,7 +96,7 @@ def scan_qr_api():
             })
         
         print("[WARN] لم يتم العثور على QR في الصورة")
-        return jsonify({"success": False, "error": "لم يتم العثور على رمز QR"}), 404
+        return jsonify({"success": False, "error": "لم يتم العثور على رمز QR داخل الصورة"}), 200
             
     except Exception as e:
         print(f"[ERROR] حدث خطأ: {str(e)}")

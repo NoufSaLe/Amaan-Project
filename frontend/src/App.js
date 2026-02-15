@@ -3,9 +3,9 @@ import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-route
 import axios from 'axios';
 import './App.css';
 
-// --- المكونات (Pages) ---
-
-// 1. صفحة الهوم والمسح
+/* =========================
+   Home Page
+========================= */
 const HomePage = ({ setScanResult, setLoading }) => {
   const navigate = useNavigate();
 
@@ -17,13 +17,27 @@ const HomePage = ({ setScanResult, setLoading }) => {
     formData.append('file', file);
 
     setLoading(true);
+
     try {
-      // إرسال الصورة للباك إند
-      const response = await axios.post('http://127.0.0.1:5000/api/scan-qr', formData);
+      const response = await axios.post(
+        'http://127.0.0.1:5000/api/scan-qr',
+        formData
+      );
+
+      // ❌ لا يوجد QR
+      if (!response.data.success) {
+        setScanResult({ noQR: true });
+        navigate('/result');
+        return;
+      }
+
+      // ✅ يوجد QR
       setScanResult(response.data);
-      navigate('/result'); // الانتقال لصفحة النتيجة بعد انتهاء الفحص
+      navigate('/result');
+
     } catch (err) {
-      alert("عذراً، حدث خطأ أثناء قراءة الصورة أو الاتصال بالسيرفر.");
+      setScanResult({ serverError: true });
+      navigate('/result');
     } finally {
       setLoading(false);
     }
@@ -34,99 +48,144 @@ const HomePage = ({ setScanResult, setLoading }) => {
       <div className="scan-card">
         <div className="icon-placeholder">📷</div>
         <h2>مسح رمز الاستجابة</h2>
-        <p>قم برفع صورة الـ QR Code لفحصها أمنياً</p>
+        <p>قم برفع صورة QR Code لفحصها أمنياً</p>
+
         <label className="upload-btn">
           إبدأ الفحص الآن
           <input type="file" accept="image/*" onChange={handleImageUpload} hidden />
         </label>
-        <p className="privacy-note">🛡️ خصوصيتك أولويتنا: لا يتم حفظ صورك في سيرفراتنا.</p>
+
+        <p className="privacy-note">
+          🛡️ خصوصيتك أولويتنا: لا يتم حفظ صورك في سيرفراتنا.
+        </p>
       </div>
     </div>
   );
 };
 
-// 2. صفحة النتيجة
+/* =========================
+   Result Page
+========================= */
 const ResultPage = ({ scanResult }) => {
   const navigate = useNavigate();
 
-  // حماية في حال دخل المستخدم الصفحة مباشرة بدون سكان
   if (!scanResult) {
     return (
       <div className="page">
         <div className="result-card">
           <p>لا توجد نتائج لعرضها.</p>
-          <button onClick={() => navigate('/')}>العودة للرئيسية</button>
+          <button onClick={() => navigate('/')}>العودة</button>
         </div>
       </div>
     );
   }
+
+  // ❌ لا يوجد QR
+  if (scanResult.noQR) {
+    return (
+      <div className="page result-page safe-theme">
+        <div className="result-card">
+          <div className="result-icon">🔍</div>
+          <h2>لم يتم العثور على رمز QR</h2>
+          <p>تم تحليل الصورة ولكن لم يتم اكتشاف أي رمز QR.</p>
+
+          <button className="back-btn" onClick={() => navigate('/')}>
+            تجربة صورة أخرى
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ❌ خطأ سيرفر
+  if (scanResult.serverError) {
+    return (
+      <div className="page result-page danger-theme">
+        <div className="result-card">
+          <div className="result-icon">⚠️</div>
+          <h2>حدث خطأ أثناء الاتصال بالسيرفر</h2>
+
+          <button className="back-btn" onClick={() => navigate('/')}>
+            المحاولة مرة أخرى
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* =========================
+     ⭐ التعديل الجديد هنا
+     التحقق هل المحتوى رابط أم نص
+  ========================= */
+
+  const qrText = scanResult.data || "";
+
+  const isURL =
+    qrText.startsWith("http://") ||
+    qrText.startsWith("https://") ||
+    qrText.startsWith("www.");
+
+  // 📝 QR يحتوي نص فقط
+  if (!isURL) {
+    return (
+      <div className="page result-page safe-theme">
+        <div className="result-card">
+          <div className="result-icon">📝</div>
+
+          <h2>تم اكتشاف نص داخل QR</h2>
+
+          <div className="details-container">
+            <p className="url-text">
+              هذا الرمز لا يحتوي على رابط وإنما نص:
+            </p>
+
+            <p className="url-text" style={{ marginTop: "10px" }}>
+              <strong>{qrText}</strong>
+            </p>
+          </div>
+
+          <button className="back-btn" onClick={() => navigate('/')}>
+            فحص رمز آخر
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  /* =========================
+     رابط طبيعي (الفحص الأمني)
+  ========================= */
 
   const isMalicious = scanResult.vt_result?.malicious;
 
   return (
     <div className={`page result-page ${isMalicious ? 'danger-theme' : 'safe-theme'}`}>
       <div className="result-card">
-        <div className="result-icon">{isMalicious ? '⚠️' : '✅'}</div>
-        <h2>{isMalicious ? 'تحذير: رابط غير آمن!' : 'رابط آمن تماماً'}</h2>
-        
+        <div className="result-icon">
+          {isMalicious ? '⚠️' : '✅'}
+        </div>
+
+        <h2>
+          {isMalicious ? 'تحذير: رابط غير آمن!' : 'رابط آمن تماماً'}
+        </h2>
+
         <div className="details-container">
-          <p className="url-text"><strong>الرابط:</strong> {scanResult.data}</p>
-          {isMalicious && (
-            <p className="threat-count">
-              تم اكتشاف تهديد بواسطة <strong>{scanResult.vt_result.malicious_count}</strong> محرك فحص أمني.
-            </p>
-          )}
+          <p className="url-text">
+            <strong>الرابط:</strong> {qrText}
+          </p>
         </div>
 
-        <div className="actions-btns">
-          <button className="back-btn" onClick={() => navigate('/')}>فحص رابط آخر</button>
-          {isMalicious && (
-            <button className="report-btn" onClick={() => navigate('/report')}>الإبلاغ عن الرابط</button>
-          )}
-        </div>
+        <button className="back-btn" onClick={() => navigate('/')}>
+          فحص رابط آخر
+        </button>
       </div>
     </div>
   );
 };
 
-// 3. صفحة الابلاغ
-const ReportPage = () => {
-  const navigate = useNavigate();
-  const [isSent, setIsSent] = useState(false);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    setIsSent(true);
-    // هنا مستقبلاً نربط مع قاعدة بيانات لإرسال البلاغ
-  };
-
-  return (
-    <div className="page report-page">
-      <div className="report-card">
-        <h2>نموذج الإبلاغ</h2>
-        {!isSent ? (
-          <>
-            <p>ساعدنا في تحسين مجتمع "أمان" من خلال الإبلاغ عن الروابط الاحتيالية.</p>
-            <form onSubmit={handleSubmit}>
-              <textarea placeholder="أدخل تفاصيل إضافية عن الرابط المشبوه..." required></textarea>
-              <button type="submit" className="submit-report">إرسال البلاغ</button>
-              <button type="button" className="cancel-btn" onClick={() => navigate(-1)}>إلغاء</button>
-            </form>
-          </>
-        ) : (
-          <div className="success-report">
-            <div className="success-icon">✔️</div>
-            <h3>تم استلام بلاغك!</h3>
-            <p>شكراً لمساهمتك في جعل الإنترنت مكاناً أكثر أماناً.</p>
-            <button onClick={() => navigate('/')}>العودة للصفحة الرئيسية</button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// --- المكون الرئيسي للهيكلة ---
+/* =========================
+   App Root
+========================= */
 function App() {
   const [scanResult, setScanResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -134,7 +193,7 @@ function App() {
   return (
     <Router>
       <div className="App">
-        {/* شاشة التحميل (Loader Overlay) */}
+
         {loading && (
           <div className="loader-overlay">
             <div className="spinner"></div>
@@ -145,8 +204,8 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage setScanResult={setScanResult} setLoading={setLoading} />} />
           <Route path="/result" element={<ResultPage scanResult={scanResult} />} />
-          <Route path="/report" element={<ReportPage />} />
         </Routes>
+
       </div>
     </Router>
   );
