@@ -1,1 +1,5 @@
 flask
+opencv-python
+flask-cors
+react-router-dom
+requests
